@@ -22,7 +22,7 @@
   const CONFIG = {
     playerHp: 3,
     enemyHp: 3,
-    bossHp: 5,
+    bossHp: 10,
     killsPerBoss: 8,      // a boss appears after this many sinkings
     scrollSpeed: 38,      // ocean drift (px/s)
     maxParticles: 1500,

@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <!--
+    Ironclad Tide app icon: the player's battleship cutting through the ocean.
+    Ship geometry and colours mirror SHIPS.player / PALETTES.player in game.js.
+    Source for apple-touch-icon.png (180x180) — iOS applies its own rounded mask,
+    so the artwork is full-bleed and fully opaque.
+  -->
+  <defs>
+    <!-- Ocean (same stops as the in-game oceanGrad) -->
+    <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a3150"/>
+      <stop offset="0.5" stop-color="#0c4a6b"/>
+      <stop offset="1" stop-color="#072b44"/>
+    </linearGradient>
+    <radialGradient id="sunGlint" cx="0.28" cy="0.18" r="0.75">
+      <stop offset="0" stop-color="#bfefff" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#bfefff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#bfefff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.72">
+      <stop offset="0.6" stop-color="#010a14" stop-opacity="0"/>
+      <stop offset="1" stop-color="#010a14" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="shipGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(0 0) scale(46 20)">
+      <stop offset="0" stop-color="#3ef2ff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#3ef2ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Hull shading (ship-local space: bow at +x, beam along y) -->
+    <linearGradient id="hull" x1="0" y1="-11" x2="0" y2="11" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a3c8e0"/>
+      <stop offset="0.45" stop-color="#56809e"/>
+      <stop offset="1" stop-color="#223749"/>
+    </linearGradient>
+
+    <!-- Wake foam fading astern -->
+    <linearGradient id="wakeFade" x1="-30" y1="0" x2="-100" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8fbff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#e8fbff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="churnFade" x1="-30" y1="0" x2="-95" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d6f6ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#d6f6ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <path id="hullShape" d="M33 0 Q20.46 -11.66 3.3 -11 L-28.05 -10.12 Q-33 -9.46 -33 0 Q-33 9.46 -28.05 10.12 L3.3 11 Q20.46 11.66 33 0 Z"/>
+    <clipPath id="deckClip">
+      <use href="#hullShape"/>
+    </clipPath>
+  </defs>
+
+  <!-- Ocean -->
+  <rect width="180" height="180" fill="url(#ocean)"/>
+  <rect width="180" height="180" fill="url(#sunGlint)"/>
+
+  <!-- Wave ripples -->
+  <g fill="none" stroke="#beebff" stroke-linecap="round">
+    <g stroke-opacity="0.07" stroke-width="3.2">
+      <path d="M8 30 q16 -7 32 0"/>
+      <path d="M118 150 q20 -8 40 0"/>
+      <path d="M128 92 q18 -7 36 0"/>
+      <path d="M14 112 q14 -5 28 0"/>
+    </g>
+    <g stroke-opacity="0.16" stroke-width="1.6">
+      <path d="M22 16 q7 -3 14 0"/>
+      <path d="M60 26 q9 -3.5 18 0"/>
+      <path d="M100 12 q6 -2.4 12 0"/>
+      <path d="M150 20 q8 -3 16 0"/>
+      <path d="M10 56 q8 -3 16 0"/>
+      <path d="M44 70 q6 -2.4 12 0"/>
+      <path d="M146 62 q9 -3.4 18 0"/>
+      <path d="M156 118 q7 -2.8 14 0"/>
+      <path d="M118 128 q6 -2.4 12 0"/>
+      <path d="M12 92 q7 -2.8 14 0"/>
+      <path d="M76 160 q8 -3 16 0"/>
+      <path d="M126 168 q7 -2.8 14 0"/>
+      <path d="M150 150 q6 -2.4 12 0"/>
+      <path d="M20 168 q6 -2.4 12 0"/>
+    </g>
+  </g>
+
+  <!-- Sparkles -->
+  <g fill="#dcf5ff">
+    <circle cx="38" cy="40" r="1.1" fill-opacity="0.35"/>
+    <circle cx="84" cy="18" r="0.9" fill-opacity="0.3"/>
+    <circle cx="132" cy="38" r="1.2" fill-opacity="0.28"/>
+    <circle cx="164" cy="88" r="1" fill-opacity="0.25"/>
+    <circle cx="24" cy="80" r="0.9" fill-opacity="0.3"/>
+    <circle cx="140" cy="140" r="1.1" fill-opacity="0.22"/>
+    <circle cx="100" cy="170" r="0.9" fill-opacity="0.2"/>
+    <circle cx="60" cy="48" r="0.8" fill-opacity="0.28"/>
+  </g>
+
+  <!-- Ship shadow (offset in screen space like drawShip) -->
+  <g transform="translate(97 95) rotate(-45) scale(2.15)">
+    <use href="#hullShape" transform="scale(1.02 1.12)" fill="#00081a" fill-opacity="0.38"/>
+  </g>
+
+  <!-- Player battleship, heading up-right -->
+  <g transform="translate(91 89) rotate(-45) scale(2.15)">
+    <!-- Accent glow beneath hull -->
+    <ellipse cx="0" cy="0" rx="46" ry="20" fill="url(#shipGlow)"/>
+
+    <!-- Wake: Kelvin arms + churned water astern -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M-29 -9.6 Q-62 -17 -100 -34" stroke="url(#wakeFade)" stroke-width="1.6"/>
+      <path d="M-29 9.6 Q-62 17 -100 34" stroke="url(#wakeFade)" stroke-width="1.6"/>
+      <path d="M-34 -4 Q-60 -9 -92 -14" stroke="url(#wakeFade)" stroke-width="0.8" stroke-dasharray="3 2.5"/>
+      <path d="M-34 4 Q-60 9 -92 14" stroke="url(#wakeFade)" stroke-width="0.8" stroke-dasharray="3 2.5"/>
+    </g>
+    <path d="M-31 -6 Q-60 -8 -96 -4 Q-100 0 -96 4 Q-60 8 -31 6 Q-35 0 -31 -6 Z" fill="url(#churnFade)"/>
+
+    <!-- Bow wave -->
+    <g fill="none" stroke="#e8fbff" stroke-linecap="round">
+      <path d="M34.5 0 Q27 -12 6 -15.5" stroke-width="1.3" stroke-opacity="0.7"/>
+      <path d="M34.5 0 Q27 12 6 15.5" stroke-width="1.3" stroke-opacity="0.7"/>
+      <path d="M30 -9 Q22 -16 4 -19" stroke-width="0.7" stroke-opacity="0.35"/>
+      <path d="M30 9 Q22 16 4 19" stroke-width="0.7" stroke-opacity="0.35"/>
+    </g>
+
+    <!-- Hull -->
+    <use href="#hullShape" fill="url(#hull)" stroke="#0b1823" stroke-width="1.2"/>
+
+    <!-- Deck with planking -->
+    <g transform="scale(0.84 0.66)">
+      <use href="#hullShape" fill="#c8ad7f"/>
+      <g clip-path="url(#deckClip)" stroke="rgba(90, 60, 30, 0.35)" stroke-width="1">
+        <path d="M-33 -11H33M-33 -7.6H33M-33 -4.2H33M-33 -0.8H33M-33 2.6H33M-33 6H33M-33 9.4H33"/>
+      </g>
+    </g>
+
+    <!-- Bow chevron -->
+    <path d="M21.78 -4.4 L27.06 0 L21.78 4.4" fill="none" stroke="#3ef2ff" stroke-width="1.6"
+          stroke-opacity="0.9" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <!-- Bridge / superstructure -->
+    <rect x="-10" y="-4.5" width="15" height="12" rx="3" fill="#8aa3b5"/>
+    <rect x="-11.5" y="-6" width="15" height="12" rx="3" fill="#e3edf4"/>
+    <rect x="0.5" y="-4" width="1.7" height="8" fill="#3ef2ff" fill-opacity="0.9"/>
+    <circle cx="-5" cy="0" r="2.16" fill="#8aa3b5"/>
+
+    <!-- Funnel -->
+    <ellipse cx="-15" cy="0" rx="4.86" ry="3.74" fill="#223749"/>
+    <ellipse cx="-15" cy="0" rx="2.99" ry="2.06" fill="#05080c"/>
+
+    <!-- Forward turret -->
+    <g transform="translate(17 0)">
+      <rect x="0" y="-3.73" width="14.95" height="2" fill="#1f2c37"/>
+      <rect x="0" y="1.73" width="14.95" height="2" fill="#1f2c37"/>
+      <circle r="6.5" fill="#47657c" stroke="#0b1823" stroke-width="1"/>
+      <circle cx="-0.98" r="3.58" fill="#86abc6"/>
+    </g>
+
+    <!-- Aft turret -->
+    <g transform="translate(-25 0)">
+      <rect x="0" y="-3.52" width="13.8" height="2" fill="#1f2c37"/>
+      <rect x="0" y="1.52" width="13.8" height="2" fill="#1f2c37"/>
+      <circle r="6" fill="#47657c" stroke="#0b1823" stroke-width="1"/>
+      <circle cx="-0.9" r="3.3" fill="#86abc6"/>
+    </g>
+  </g>
+
+  <rect width="180" height="180" fill="url(#vignette)"/>
+</svg>
