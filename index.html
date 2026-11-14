@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ironclad Tide — Battleship Arcade Shooter</title>
+  <meta name="description" content="Command your battleship in Ironclad Tide: sink enemy frigates, survive with 3 hull points, and take down the 5-HP Dreadnought boss in this fast-paced naval arcade shooter." />
+  <meta name="theme-color" content="#031220" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Russo+One&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+    <canvas id="game" aria-label="Battleship game canvas"></canvas>
+    <div id="vignette"></div>
+    <div id="damage-flash"></div>
+
+    <!-- HUD -->
+    <header id="hud" class="hidden" aria-label="Game status">
+      <div class="hud-left panel">
+        <span class="label">Hull</span>
+        <div id="hearts"></div>
+      </div>
+
+      <div class="hud-center">
+        <div id="progress-wrap" class="panel">
+          <div class="progress-row">
+            <span class="label">Next Dreadnought</span>
+            <span id="progress-text" class="progress-text">0/8</span>
+          </div>
+          <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+        </div>
+        <div id="boss-wrap" class="panel hidden">
+          <div class="progress-row">
+            <span class="boss-title">DREADNOUGHT</span>
+            <span id="boss-hp-text" class="progress-text boss">5/5</span>
+          </div>
+          <div id="boss-segments"></div>
+        </div>
+      </div>
+
+      <div class="hud-right panel">
+        <div class="stat"><span class="label">Score</span><span id="score" class="stat-value">0</span></div>
+        <div class="stat"><span class="label">Wave</span><span id="wave" class="stat-value">1</span></div>
+        <button id="pause-btn" class="icon-btn" aria-label="Pause game">
+          <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Banner -->
+    <div id="banner" class="banner" aria-live="polite">
+      <div id="banner-title" class="banner-title"></div>
+      <div id="banner-sub" class="banner-sub"></div>
+    </div>
+
+    <!-- Start screen -->
+    <section id="start-screen" class="overlay">
+      <div class="card">
+        <span class="eyebrow">Naval Arcade</span>
+        <h1 class="title">IRONCLAD TIDE</h1>
+        <p class="tagline">Command your battleship. Sink the enemy fleet. Survive the Dreadnought.</p>
+
+        <div class="legend">
+          <div class="legend-row">
+            <canvas class="legend-icon" data-kind="player" width="240" height="88"></canvas>
+            <div><div class="legend-name">Your Battleship</div><div class="legend-desc">Every enemy hit costs one hull point</div></div>
+            <span class="hp-badge player">3 HP</span>
+          </div>
+          <div class="legend-row">
+            <canvas class="legend-icon" data-kind="enemy" width="240" height="88"></canvas>
+            <div><div class="legend-name">Enemy Frigate</div><div class="legend-desc">Patrols and fires shells at you</div></div>
+            <span class="hp-badge enemy">3 HP</span>
+          </div>
+          <div class="legend-row">
+            <canvas class="legend-icon" data-kind="boss" width="240" height="88"></canvas>
+            <div><div class="legend-name">Dreadnought</div><div class="legend-desc">Boss — arrives after every 8 sinkings</div></div>
+            <span class="hp-badge boss">5 HP</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="control"><span class="label">Move</span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+          <div class="control"><span class="label">Aim</span><kbd>Mouse</kbd></div>
+          <div class="control"><span class="label">Fire</span><kbd>Click</kbd><kbd>Space</kbd></div>
+          <div class="control"><span class="label">Pause</span><kbd>P</kbd><kbd>Esc</kbd></div>
+        </div>
+        <p class="touch-hint">On touch screens: drag to steer — guns auto-aim and fire.</p>
+
+        <button id="start-btn" class="btn btn-primary">Set Sail</button>
+        <p class="best-line">Best score: <span id="menu-best">0</span></p>
+      </div>
+    </section>
+
+    <!-- Pause screen -->
+    <section id="pause-screen" class="overlay hidden">
+      <div class="card card-compact">
+        <span class="eyebrow">Anchored</span>
+        <h2 class="title-sm">PAUSED</h2>
+        <div class="actions">
+          <button id="resume-btn" class="btn btn-primary">Resume</button>
+          <button id="quit-btn" class="btn btn-ghost">Main Menu</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game over screen -->
+    <section id="gameover-screen" class="overlay hidden">
+      <div class="card danger">
+        <span class="eyebrow red">Mission Report</span>
+        <h2 class="title-sm red">YOUR SHIP HAS SUNK</h2>
+        <div id="new-best" class="new-best hidden">★ New Best Score ★</div>
+        <div class="stats">
+          <div class="stat-card"><span class="label">Score</span><span id="final-score" class="stat-value">0</span></div>
+          <div class="stat-card"><span class="label">Best</span><span id="final-best" class="stat-value">0</span></div>
+          <div class="stat-card"><span class="label">Ships Sunk</span><span id="final-kills" class="stat-value">0</span></div>
+          <div class="stat-card"><span class="label">Dreadnoughts</span><span id="final-bosses" class="stat-value">0</span></div>
+        </div>
+        <div class="actions">
+          <button id="restart-btn" class="btn btn-primary">Play Again</button>
+          <button id="menu-btn" class="btn btn-ghost">Main Menu</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
