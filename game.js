@@ -27,7 +27,29 @@
     scrollSpeed: 38,      // ocean drift (px/s)
     maxParticles: 1500,
     player: { speed: 270, accel: 5, fireCooldown: 0.2, bulletSpeed: 760, invuln: 1.6 },
+    powerups: {
+      dropChance: 0.22,     // chance a sunk frigate drops a weapon crate
+      bossDropChance: 1,    // the Dreadnought always drops one
+      duration: 5,          // seconds a special weapon stays active
+      pickupLife: 9,        // seconds a crate floats before sinking
+      maxOnField: 3,
+    },
+    homing: {
+      baseChance: 0.12,     // chance a frigate shot is a homing torpedo
+      perWave: 0.02,        // added per wave...
+      maxChance: 0.25,      // ...up to this cap
+      trackTime: 10,        // seconds a torpedo steers toward the player
+      speed: 170, turnRate: 1.7, maxLife: 18, maxActive: 4,
+    },
   };
+
+  // Special weapons granted by crates
+  const WEAPONS = {
+    spread:  { name: 'Tempest Spread', color: '#ffc94a', rgb: '255, 201, 74', hue: 44, cooldown: 0.18, pellets: 5, fan: 0.16, speed: 720, life: 0.75 },
+    lance:   { name: 'Arc Lance', color: '#c77dff', rgb: '199, 125, 255', hue: 276, tick: 0.2 },
+    missile: { name: 'Hunter Missiles', color: '#9dff4a', rgb: '157, 255, 74', hue: 95, cooldown: 0.4, damage: 2, blast: 55 },
+  };
+  const WEAPON_KEYS = Object.keys(WEAPONS);
   const BEST_KEY = 'ironclad-tide-best';
 
   const PALETTES = {
@@ -323,6 +345,114 @@
   }
 
   /* =========================================================
+     Crates, weapon glyphs, torpedoes (shared by game + legend)
+     ========================================================= */
+  function drawWeaponGlyph(g, type, s, color) {
+    g.save();
+    g.strokeStyle = color;
+    g.fillStyle = color;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.lineWidth = Math.max(1.5, s * 0.17);
+    g.shadowColor = color;
+    g.shadowBlur = s * 0.6;
+    if (type === 'spread') {
+      for (const [ex, ey] of [[-0.62, -0.5], [0, -0.68], [0.62, -0.5]]) {
+        g.beginPath(); g.moveTo(0, s * 0.6); g.lineTo(ex * s, ey * s); g.stroke();
+        g.beginPath(); g.arc(ex * s, ey * s, s * 0.14, 0, TAU); g.fill();
+      }
+    } else if (type === 'lance') {
+      g.beginPath();
+      g.moveTo(s * 0.18, -s * 0.78);
+      g.lineTo(-s * 0.38, s * 0.1);
+      g.lineTo(-s * 0.02, s * 0.1);
+      g.lineTo(-s * 0.18, s * 0.78);
+      g.lineTo(s * 0.38, -s * 0.1);
+      g.lineTo(s * 0.02, -s * 0.1);
+      g.closePath();
+      g.fill();
+    } else {
+      g.rotate(-Math.PI / 4);
+      roundRectPath(g, -s * 0.55, -s * 0.2, s * 0.95, s * 0.4, s * 0.12);
+      g.fill();
+      g.beginPath(); g.moveTo(s * 0.38, -s * 0.2); g.quadraticCurveTo(s * 0.8, 0, s * 0.38, s * 0.2); g.fill();
+      g.beginPath();
+      g.moveTo(-s * 0.55, -s * 0.2); g.lineTo(-s * 0.78, -s * 0.48); g.lineTo(-s * 0.3, -s * 0.2);
+      g.moveTo(-s * 0.55, s * 0.2); g.lineTo(-s * 0.78, s * 0.48); g.lineTo(-s * 0.3, s * 0.2);
+      g.fill();
+    }
+    g.restore();
+  }
+
+  function drawCrate(g, x, y, type, t, alpha = 1, s = 13) {
+    const w = WEAPONS[type];
+    g.save();
+    g.translate(x, y + Math.sin(t * 3) * 2.5);
+    g.globalAlpha = alpha;
+    // glow
+    const glow = g.createRadialGradient(0, 0, 2, 0, 0, s * 3);
+    glow.addColorStop(0, `rgba(${w.rgb}, 0.45)`);
+    glow.addColorStop(1, `rgba(${w.rgb}, 0)`);
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(0, 0, s * 3, 0, TAU); g.fill();
+    // ripple
+    const rp = (t * 0.8) % 1;
+    g.strokeStyle = `rgba(${w.rgb}, ${0.55 * (1 - rp)})`;
+    g.lineWidth = 1.5;
+    g.beginPath(); g.arc(0, 0, s * (1.3 + rp * 1.5), 0, TAU); g.stroke();
+    // crate body
+    g.rotate(Math.sin(t * 1.6) * 0.18);
+    roundRectPath(g, -s, -s, s * 2, s * 2, s * 0.38);
+    const body = g.createLinearGradient(0, -s, 0, s);
+    body.addColorStop(0, '#173650');
+    body.addColorStop(1, '#07141f');
+    g.fillStyle = body;
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = w.color;
+    g.stroke();
+    roundRectPath(g, -s * 0.78, -s * 0.78, s * 1.56, s * 1.56, s * 0.26);
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.stroke();
+    drawWeaponGlyph(g, type, s * 0.66, w.color);
+    g.restore();
+  }
+
+  function drawTorpedoBody(g, x, y, a, t, tracking) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(a);
+    // fins
+    g.fillStyle = '#161c24';
+    g.beginPath();
+    g.moveTo(-10, -3); g.lineTo(-14, -6.5); g.lineTo(-7, -3);
+    g.moveTo(-10, 3); g.lineTo(-14, 6.5); g.lineTo(-7, 3);
+    g.fill();
+    // body
+    roundRectPath(g, -12, -3.2, 20, 6.4, 3);
+    const bg = g.createLinearGradient(0, -3.2, 0, 3.2);
+    bg.addColorStop(0, '#5d6b7c');
+    bg.addColorStop(1, '#1c232d');
+    g.fillStyle = bg;
+    g.fill();
+    // warhead
+    g.fillStyle = '#d23a52';
+    g.beginPath(); g.moveTo(7, -3.2); g.quadraticCurveTo(14, 0, 7, 3.2); g.closePath(); g.fill();
+    // blinking seeker light
+    if (tracking && Math.sin(t * 18) > 0) {
+      const lg = g.createRadialGradient(3, 0, 0, 3, 0, 9);
+      lg.addColorStop(0, 'rgba(255, 80, 100, 0.9)');
+      lg.addColorStop(1, 'rgba(255, 80, 100, 0)');
+      g.fillStyle = lg;
+      g.beginPath(); g.arc(3, 0, 9, 0, TAU); g.fill();
+      g.fillStyle = '#ffe3e8';
+      g.beginPath(); g.arc(3, 0, 1.6, 0, TAU); g.fill();
+    }
+    g.restore();
+  }
+
+  /* =========================================================
      DOM / UI
      ========================================================= */
   const $ = id => document.getElementById(id);
@@ -335,6 +465,8 @@
     damage: $('damage-flash'), menuBest: $('menu-best'),
     finalScore: $('final-score'), finalBest: $('final-best'), finalKills: $('final-kills'),
     finalBosses: $('final-bosses'), newBest: $('new-best'),
+    weaponChip: $('weapon-chip'), weaponName: $('weapon-name'),
+    weaponTime: $('weapon-time'), weaponFill: $('weapon-fill'),
   };
 
   const HEART_SVG = '<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.1 0 3.6 1.1 5.2 3 1.6-1.9 3.1-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>';
@@ -380,6 +512,31 @@
     ui.bossHpText.textContent = `${bossHp}/${CONFIG.bossHp}`;
   }
 
+  // Active special-weapon chip (runs every frame; only touches the DOM when needed)
+  let chipWeapon = null;
+  function updateWeaponChip() {
+    const p = G && G.player;
+    const wk = p && p.alive ? p.weapon : null;
+    if (wk !== chipWeapon) {
+      chipWeapon = wk;
+      ui.weaponChip.classList.toggle('hidden', !wk);
+      if (wk) {
+        const w = WEAPONS[wk];
+        ui.weaponChip.style.setProperty('--wc', w.color);
+        ui.weaponChip.style.setProperty('--wc-rgb', w.rgb);
+        ui.weaponName.textContent = w.name;
+        ui.weaponChip.classList.remove('pop');
+        void ui.weaponChip.offsetWidth;
+        ui.weaponChip.classList.add('pop');
+      }
+    }
+    if (wk) {
+      ui.weaponFill.style.width = (p.weaponTime / CONFIG.powerups.duration * 100) + '%';
+      ui.weaponTime.textContent = p.weaponTime.toFixed(1) + 's';
+      ui.weaponChip.classList.toggle('ending', p.weaponTime < 1.5);
+    }
+  }
+
   let bannerTimeout = null;
   function showBanner(title, sub, variant = '', duration = 2600) {
     ui.banner.className = 'banner ' + variant;
@@ -403,7 +560,41 @@
   function renderLegendIcons() {
     document.querySelectorAll('.legend-icon').forEach(c => {
       const g = c.getContext('2d');
-      const ship = makeShip(c.dataset.kind, 0, 0, 0);
+      const kind = c.dataset.kind;
+      if (kind === 'powerups') {
+        g.clearRect(0, 0, c.width, c.height);
+        WEAPON_KEYS.forEach((k, i) => drawCrate(g, c.width * (0.2 + i * 0.3), c.height / 2, k, 0.55 + i * 0.9, 1, 19));
+        return;
+      }
+      if (kind === 'torpedo') {
+        g.clearRect(0, 0, c.width, c.height);
+        g.save();
+        g.strokeStyle = 'rgba(225, 245, 255, 0.4)';
+        g.lineWidth = 3;
+        g.lineCap = 'round';
+        g.setLineDash([2, 8]);
+        g.beginPath(); g.moveTo(16, 72); g.quadraticCurveTo(80, 78, 124, 50); g.stroke();
+        g.restore();
+        g.save();
+        g.translate(150, 36);
+        g.scale(2.6, 2.6);
+        drawTorpedoBody(g, 0, 0, -0.5, 0.05, true);
+        g.restore();
+        g.save();
+        g.translate(212, 22);
+        g.strokeStyle = 'rgba(255, 59, 92, 0.9)';
+        g.lineWidth = 2.5;
+        g.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+          const a = Math.PI / 4 + i * Math.PI / 2;
+          g.beginPath(); g.arc(0, 0, 14, a - 0.4, a + 0.4); g.stroke();
+        }
+        g.fillStyle = '#ff3b5c';
+        g.beginPath(); g.arc(0, 0, 3, 0, TAU); g.fill();
+        g.restore();
+        return;
+      }
+      const ship = makeShip(kind, 0, 0, 0);
       const scale = Math.min((c.width * 0.84) / ship.len, (c.height * 0.78) / (ship.wid * 1.25));
       g.clearRect(0, 0, c.width, c.height);
       g.save();
@@ -464,14 +655,14 @@
      ========================================================= */
   function makePlayer() {
     const p = makeShip('player', W / 2, H * 0.78, -Math.PI / 2);
-    Object.assign(p, { hp: CONFIG.playerHp, cooldown: 0, invuln: 0, nextTurret: 0, alive: true });
+    Object.assign(p, { hp: CONFIG.playerHp, cooldown: 0, invuln: 0, nextTurret: 0, alive: true, weapon: null, weaponTime: 0 });
     return p;
   }
 
   function newGame() {
     G = {
       player: makePlayer(),
-      enemies: [], boss: null, bullets: [], shells: [],
+      enemies: [], boss: null, bullets: [], shells: [], torpedoes: [], pickups: [], lance: null,
       particles: [], foam: [], wrecks: [], floaters: [], timers: [],
       score: 0, kills: 0, killsSinceBoss: 0, wave: 1, bossesDefeated: 0,
       bossIncoming: false, bossTimer: 0, spawnTimer: 1.0, time: 0, deathTimer: 0,
@@ -479,6 +670,7 @@
     shake = 0;
     buildHUD();
     updateHUD();
+    updateWeaponChip();
   }
 
   const difficulty = () => 1 + (G.wave - 1) * 0.2;
@@ -610,7 +802,7 @@
     let best = null, bd = Infinity;
     const list = G.boss ? [...G.enemies, G.boss] : G.enemies;
     for (const e of list) {
-      if (e.y < 0) continue;
+      if (e.dead || e.y < 0) continue;
       const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
       if (d < bd) { bd = d; best = e; }
     }
@@ -653,25 +845,108 @@
     p.invuln = Math.max(0, p.invuln - dt);
     p.flash = Math.max(0, p.flash - dt);
 
-    const firing = mouse.down || keys.has('Space') || keys.has('KeyJ') || touch.active;
-    if (firing && p.cooldown <= 0) {
-      firePlayer(p);
-      p.cooldown = CONFIG.player.fireCooldown;
+    // Special weapon countdown
+    if (p.weapon) {
+      p.weaponTime -= dt;
+      if (p.weaponTime <= 0) {
+        p.weapon = null;
+        p.weaponTime = 0;
+        floater(p.x, p.y - 46, 'WEAPON OFFLINE', '#8eb1c6', 13);
+      }
     }
+
+    const firing = mouse.down || keys.has('Space') || keys.has('KeyJ') || touch.active;
+    if (firing && p.weapon === 'lance') fireLance(p, dt);
+    else if (firing && p.cooldown <= 0) firePlayer(p);
     emitWake(p, dt);
   }
 
   function firePlayer(p) {
+    const wk = p.weapon;
+
+    // Hunter Missiles: one homing missile from every turret
+    if (wk === 'missile') {
+      const w = WEAPONS.missile;
+      for (const tu of p.turrets) {
+        const m = turretMuzzle(p, tu), a = m.a + rand(-0.3, 0.3), sp = 240;
+        G.bullets.push({
+          kind: 'missile', x: m.x, y: m.y, angle: a, speed: sp,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, life: 2.8, target: null, trailT: 0,
+        });
+        tu.recoil = 1;
+        muzzleFlash(m.x, m.y, m.a, w.hue);
+      }
+      p.cooldown = w.cooldown;
+      return;
+    }
+
     const tu = p.turrets[p.nextTurret++ % p.turrets.length];
     const m = turretMuzzle(p, tu);
-    const sp = CONFIG.player.bulletSpeed;
-    G.bullets.push({
-      x: m.x, y: m.y,
-      vx: Math.cos(m.a) * sp + p.vx * 0.3, vy: Math.sin(m.a) * sp + p.vy * 0.3,
-      r: 4, life: 1.6,
-    });
+    if (wk === 'spread') {
+      // Tempest Spread: shotgun fan
+      const w = WEAPONS.spread, half = (w.pellets - 1) / 2;
+      for (let i = -half; i <= half; i++) {
+        const a = m.a + i * w.fan;
+        G.bullets.push({
+          kind: 'spread', x: m.x, y: m.y,
+          vx: Math.cos(a) * w.speed + p.vx * 0.3, vy: Math.sin(a) * w.speed + p.vy * 0.3,
+          r: 4, life: w.life,
+        });
+      }
+      p.cooldown = w.cooldown;
+      muzzleFlash(m.x, m.y, m.a, w.hue);
+      shake = Math.max(shake, 1.5);
+    } else {
+      const sp = CONFIG.player.bulletSpeed;
+      G.bullets.push({
+        kind: 'shot', x: m.x, y: m.y,
+        vx: Math.cos(m.a) * sp + p.vx * 0.3, vy: Math.sin(m.a) * sp + p.vy * 0.3,
+        r: 4, life: 1.6,
+      });
+      p.cooldown = CONFIG.player.fireCooldown;
+      muzzleFlash(m.x, m.y, m.a, 185);
+    }
     tu.recoil = 1;
-    muzzleFlash(m.x, m.y, m.a, 185);
+  }
+
+  // Arc Lance: continuous piercing beam from the forward turret
+  function fireLance(p, dt) {
+    const w = WEAPONS.lance, tu = p.turrets[0], m = turretMuzzle(p, tu);
+    const dx = Math.cos(m.a), dy = Math.sin(m.a), reach = Math.hypot(W, H) + 60;
+    const L = { x1: m.x, y1: m.y, x2: m.x + dx * reach, y2: m.y + dy * reach, hits: [] };
+    G.lance = L;
+    tu.recoil = Math.max(tu.recoil, 0.35);
+
+    const targets = G.boss ? [...G.enemies, G.boss] : G.enemies.slice();
+    for (const e of targets) {
+      if (e.dead || e.y < -10) continue;
+      let hit = null;
+      for (const h of hitCircles(e)) {
+        const k = (h.x - m.x) * dx + (h.y - m.y) * dy;
+        if (k < 0) continue;
+        const px = m.x + dx * k, py = m.y + dy * k;
+        if ((h.x - px) ** 2 + (h.y - py) ** 2 < h.r * h.r) { hit = { x: px, y: py }; break; }
+      }
+      if (!hit) continue;
+      L.hits.push(hit);
+      e.lanceCd = (e.lanceCd || 0) - dt;
+      if (e.lanceCd <= 0) {
+        e.lanceCd = w.tick;
+        damageShip(e, hit.x, hit.y);
+      } else if (Math.random() < 0.35) {
+        sparks(hit.x, hit.y, 2, w.hue);
+      }
+    }
+    for (const t of G.torpedoes) {
+      if (t.dead) continue;
+      const k = (t.x - m.x) * dx + (t.y - m.y) * dy;
+      if (k < 0) continue;
+      const px = m.x + dx * k, py = m.y + dy * k;
+      if ((t.x - px) ** 2 + (t.y - py) ** 2 < (t.r + 6) ** 2) killTorpedo(t);
+    }
+    if (Math.random() < 0.5) {
+      addP({ type: 'fire', x: m.x, y: m.y, vx: rand(-40, 40), vy: rand(-40, 40), life: 0.15, max: 0.15, size: rand(2, 3.5), drag: 3, hue: w.hue });
+    }
   }
 
   function hitPlayer(x, y) {
@@ -740,12 +1015,19 @@
       e.fireTimer -= dt;
       if (e.fireTimer <= 0) {
         const tu = e.turrets[0], m = turretMuzzle(e, tu), speed = shellSpeed();
-        const lead = Math.min(0.6, (G.wave - 1) * 0.15);
-        const tt = Math.hypot(p.x - m.x, p.y - m.y) / speed;
-        const ax = p.x + p.vx * tt * lead, ay = p.y + p.vy * tt * lead;
-        fireShell(m.x, m.y, Math.atan2(ay - m.y, ax - m.x) + rand(-0.1, 0.1), speed, false);
+        const hc = CONFIG.homing;
+        const torpChance = Math.min(hc.maxChance, hc.baseChance + (G.wave - 1) * hc.perWave);
+        if (Math.random() < torpChance && activeTorpedoes() < hc.maxActive) {
+          fireTorpedo(m.x, m.y, Math.atan2(p.y - m.y, p.x - m.x));
+          muzzleFlash(m.x, m.y, m.a, 0);
+        } else {
+          const lead = Math.min(0.6, (G.wave - 1) * 0.15);
+          const tt = Math.hypot(p.x - m.x, p.y - m.y) / speed;
+          const ax = p.x + p.vx * tt * lead, ay = p.y + p.vy * tt * lead;
+          fireShell(m.x, m.y, Math.atan2(ay - m.y, ax - m.x) + rand(-0.1, 0.1), speed, false);
+          muzzleFlash(m.x, m.y, m.a, null);
+        }
         tu.recoil = 1;
-        muzzleFlash(m.x, m.y, m.a, null);
         e.fireTimer = rand(1.7, 3.0) / difficulty();
       }
     }
@@ -773,6 +1055,115 @@
 
   function fireShell(x, y, a, speed, boss) {
     G.shells.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r: boss ? 6 : 5, life: 7, boss });
+  }
+
+  /* =========================================================
+     Homing torpedoes (enemy)
+     ========================================================= */
+  const activeTorpedoes = () => G.torpedoes.reduce((n, t) => n + (t.dead ? 0 : 1), 0);
+
+  function fireTorpedo(x, y, a) {
+    const hc = CONFIG.homing;
+    G.torpedoes.push({
+      x, y, angle: a, speed: hc.speed * 0.55, track: hc.trackTime, life: hc.maxLife,
+      r: 6, trailT: 0, dead: false, lost: false, born: rand(0, 10),
+    });
+    splash(x, y, 0.35);
+  }
+
+  function killTorpedo(t, scored = true) {
+    if (t.dead) return;
+    t.dead = true;
+    explode(t.x, t.y, 0.45);
+    if (scored) {
+      const pts = 25 * G.wave;
+      G.score += pts;
+      floater(t.x, t.y - 18, `+${pts}`, '#ffe08a', 13);
+      updateHUD();
+    }
+  }
+
+  function updateTorpedoes(dt) {
+    const p = G.player, hc = CONFIG.homing;
+    G.torpedoes = G.torpedoes.filter(t => !t.dead);
+    for (const t of G.torpedoes) {
+      t.life -= dt;
+      t.track -= dt;
+      t.speed = Math.min(hc.speed, t.speed + 140 * dt);
+      if (t.track > 0 && p.alive) {
+        t.angle = rotateTowards(t.angle, Math.atan2(p.y - t.y, p.x - t.x), hc.turnRate * dt);
+      } else if (!t.lost) {
+        // tracking time is over: seeker shuts off and it runs straight
+        t.lost = true;
+        sparks(t.x, t.y, 4, 0);
+      }
+      const c = Math.cos(t.angle), s = Math.sin(t.angle);
+      t.x += c * t.speed * dt;
+      t.y += s * t.speed * dt;
+
+      t.trailT -= dt;
+      if (t.trailT <= 0) {
+        t.trailT = 0.035;
+        G.foam.push({
+          x: t.x - c * 12 + rand(-1.5, 1.5), y: t.y - s * 12 + rand(-1.5, 1.5),
+          vx: -c * 15 + rand(-6, 6), vy: -s * 15 + rand(-6, 6), life: 0.9, max: 0.9, size: rand(1.6, 2.8),
+        });
+      }
+
+      if (p.alive && p.invuln <= 0 && circleHitsShip(t.x, t.y, t.r, p)) {
+        t.dead = true;
+        hitPlayer(t.x, t.y);
+        continue;
+      }
+      if (t.life <= 0) { killTorpedo(t, false); continue; }
+      if (offscreen(t, t.track > 0 ? 260 : 50)) t.dead = true;
+    }
+  }
+
+  /* =========================================================
+     Weapon crates
+     ========================================================= */
+  function spawnPickup(x, y, type) {
+    if (G.pickups.length >= CONFIG.powerups.maxOnField) return;
+    type = type || WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)];
+    G.pickups.push({
+      x: clamp(x, 30, W - 30), y, type, t: 0, phase: rand(0, TAU),
+      life: CONFIG.powerups.pickupLife, vx: rand(-25, 25), vy: rand(-40, -10),
+    });
+  }
+
+  function updatePickups(dt) {
+    const p = G.player, drag = Math.max(0, 1 - 1.6 * dt);
+    for (let i = G.pickups.length - 1; i >= 0; i--) {
+      const k = G.pickups[i];
+      k.t += dt;
+      k.life -= dt;
+      k.vx *= drag;
+      k.vy *= drag;
+      k.x = clamp(k.x + k.vx * dt, 24, W - 24);
+      k.y += (k.vy + CONFIG.scrollSpeed + 24) * dt;
+      if (p.alive && circleHitsShip(k.x, k.y, 16, p)) {
+        collectPickup(k);
+        G.pickups.splice(i, 1);
+        continue;
+      }
+      if (k.life <= 0 || k.y > H + 30) {
+        if (k.life <= 0) splash(k.x, k.y, 0.6);
+        G.pickups.splice(i, 1);
+      }
+    }
+  }
+
+  function collectPickup(k) {
+    const p = G.player, w = WEAPONS[k.type];
+    p.weapon = k.type;
+    p.weaponTime = CONFIG.powerups.duration;
+    p.cooldown = 0;
+    floater(p.x, p.y - 52, `${w.name.toUpperCase()}!`, w.color, 18);
+    sparks(k.x, k.y, 16, w.hue);
+    addP({ type: 'ring', x: p.x, y: p.y, vx: 0, vy: 0, life: 0.5, max: 0.5, size: 70, drag: 0, rgb: w.rgb });
+    chipWeapon = null; // force the HUD chip to re-pop
+    updateWeaponChip();
   }
 
   /* =========================================================
@@ -827,7 +1218,7 @@
 
     b.fireTimer -= dt;
     if (b.fireTimer <= 0) {
-      const pat = b.pattern++ % 3;
+      const pat = b.pattern++ % 4;
       if (pat === 0) {
         // aimed 5-shell fan from the forward turret
         const tu = b.turrets[1], m = turretMuzzle(b, tu);
@@ -841,7 +1232,7 @@
         b.burst = 6;
         b.burstTimer = 0;
         b.fireTimer = 2.4 / difficulty();
-      } else {
+      } else if (pat === 2) {
         // broadside arc
         const n = 12, rot = rand(-0.08, 0.08);
         for (let i = 0; i < n; i++) {
@@ -851,6 +1242,14 @@
         shake = Math.max(shake, 5);
         sparks(b.x, b.y + 20, 10, 350);
         b.fireTimer = 2.2 / difficulty();
+      } else {
+        // homing torpedo salvo launched from both beams
+        for (const side of [-1, 1]) {
+          const ox = b.x + side * 30, oy = b.y + b.wid * 0.5;
+          fireTorpedo(ox, oy, Math.PI / 2 + side * 0.7);
+          muzzleFlash(ox, oy, Math.PI / 2 + side * 0.7, 0);
+        }
+        b.fireTimer = 2.4 / difficulty();
       }
     }
 
@@ -872,9 +1271,9 @@
   /* =========================================================
      Damage / destruction
      ========================================================= */
-  function damageShip(s, x, y) {
+  function damageShip(s, x, y, amount = 1) {
     if (s.dead) return;
-    s.hp -= 1;
+    s.hp = Math.max(0, s.hp - amount);
     s.flash = 0.14;
     sparks(x, y, 9, s.kind === 'boss' ? 350 : 35);
     splash(x, y, 0.4);
@@ -903,6 +1302,7 @@
       }
       later(1.25, () => explode(w.x, w.y, 2.6));
       floater(s.x, s.y - 50, `+${pts.toLocaleString()}`, '#ffd36b', 26);
+      if (Math.random() < CONFIG.powerups.bossDropChance) spawnPickup(s.x, s.y);
 
       // Reward: repair one hull point (never above max)
       const p = G.player;
@@ -921,6 +1321,7 @@
       addWreck(s);
       explode(s.x, s.y, 1.1);
       floater(s.x, s.y - 30, `+${pts}`, '#ffe08a');
+      if (Math.random() < CONFIG.powerups.dropChance) spawnPickup(s.x, s.y);
 
       if (G.killsSinceBoss >= CONFIG.killsPerBoss && !G.boss && !G.bossIncoming) {
         G.bossIncoming = true;
@@ -937,6 +1338,7 @@
   function updateBullets(dt) {
     for (let i = G.bullets.length - 1; i >= 0; i--) {
       const b = G.bullets[i];
+      if (b.kind === 'missile') steerMissile(b, dt);
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
@@ -944,12 +1346,53 @@
       const targets = G.boss ? [...G.enemies, G.boss] : G.enemies.slice();
       for (const e of targets) {
         if (e.dead || e.y < -10) continue;
-        if (circleHitsShip(b.x, b.y, b.r, e)) { damageShip(e, b.x, b.y); hit = true; break; }
+        if (circleHitsShip(b.x, b.y, b.r, e)) {
+          if (b.kind === 'missile') missileBlast(b, e, targets);
+          else damageShip(e, b.x, b.y);
+          hit = true;
+          break;
+        }
+      }
+      // Player fire can shoot down homing torpedoes
+      if (!hit) {
+        for (const t of G.torpedoes) {
+          if (t.dead) continue;
+          const dx = b.x - t.x, dy = b.y - t.y, rr = b.r + t.r + 3;
+          if (dx * dx + dy * dy < rr * rr) { killTorpedo(t); hit = true; break; }
+        }
       }
       if (hit || b.life <= 0 || offscreen(b, 40)) {
-        if (!hit && b.life <= 0) splash(b.x, b.y, 0.5);
+        if (!hit && b.life <= 0) {
+          if (b.kind === 'missile') explode(b.x, b.y, 0.3);
+          else splash(b.x, b.y, 0.5);
+        }
         G.bullets.splice(i, 1);
       }
+    }
+  }
+
+  function steerMissile(b, dt) {
+    if (!b.target || b.target.dead) b.target = nearestTarget(b);
+    b.speed = Math.min(640, b.speed + 950 * dt);
+    if (b.target) b.angle = rotateTowards(b.angle, Math.atan2(b.target.y - b.y, b.target.x - b.x), 6 * dt);
+    b.vx = Math.cos(b.angle) * b.speed;
+    b.vy = Math.sin(b.angle) * b.speed;
+    b.trailT -= dt;
+    if (b.trailT <= 0) {
+      b.trailT = 0.018;
+      const life = rand(0.35, 0.6);
+      addP({ type: 'smoke', x: b.x, y: b.y, vx: rand(-8, 8), vy: rand(-8, 8), life, max: life, size: rand(1.5, 2.6), drag: 1.5 });
+      addP({ type: 'fire', x: b.x, y: b.y, vx: -b.vx * 0.08, vy: -b.vy * 0.08, life: 0.14, max: 0.14, size: rand(1.8, 2.8), drag: 3, hue: WEAPONS.missile.hue });
+    }
+  }
+
+  function missileBlast(b, e, targets) {
+    const w = WEAPONS.missile;
+    damageShip(e, b.x, b.y, w.damage);
+    explode(b.x, b.y, 0.5);
+    for (const o of targets) {
+      if (o === e || o.dead || o.y < -10) continue;
+      if (circleHitsShip(b.x, b.y, w.blast, o)) damageShip(o, o.x, o.y, 1);
     }
   }
 
@@ -1037,6 +1480,7 @@
       if (t.t <= 0) { G.timers.splice(i, 1); t.fn(); }
     }
 
+    G.lance = null;
     if (G.player.alive) updatePlayer(dt);
 
     // Spawning
@@ -1057,11 +1501,14 @@
 
     updateBullets(dt);
     updateShells(dt);
+    updateTorpedoes(dt);
+    updatePickups(dt);
     G.enemies = G.enemies.filter(e => !e.dead);
     updateParticles(dt);
     updateFoam(dt);
     updateWrecks(dt);
     updateFloaters(dt);
+    updateWeaponChip();
 
     if (state === 'dying') {
       G.deathTimer -= dt;
@@ -1119,7 +1566,7 @@
           ctx.beginPath(); ctx.arc(p.x, p.y, 4 + p.size * (1 - t), 0, TAU); ctx.stroke();
           break;
         case 'ring':
-          ctx.strokeStyle = `rgba(255, 230, 190, ${0.7 * t})`;
+          ctx.strokeStyle = `rgba(${p.rgb || '255, 230, 190'}, ${0.7 * t})`;
           ctx.lineWidth = 3 * t + 0.5;
           ctx.beginPath(); ctx.arc(p.x, p.y, 6 + p.size * (1 - t), 0, TAU); ctx.stroke();
           break;
@@ -1161,15 +1608,147 @@
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
     for (const b of G.bullets) {
+      if (b.kind === 'missile') continue;
+      const spread = b.kind === 'spread';
       const tx = b.x - b.vx * 0.035, ty = b.y - b.vy * 0.035;
-      ctx.strokeStyle = 'rgba(62, 242, 255, 0.28)';
+      ctx.strokeStyle = spread ? 'rgba(255, 190, 60, 0.32)' : 'rgba(62, 242, 255, 0.28)';
       ctx.lineWidth = 8;
       ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = 'rgba(200, 255, 255, 0.95)';
+      ctx.strokeStyle = spread ? 'rgba(255, 244, 210, 0.95)' : 'rgba(200, 255, 255, 0.95)';
       ctx.lineWidth = 2.6;
       ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
+    for (const b of G.bullets) if (b.kind === 'missile') drawMissile(b);
+  }
+
+  function drawMissile(b) {
+    const w = WEAPONS.missile;
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.angle);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(-8, 0, 0, -8, 0, 12);
+    g.addColorStop(0, `rgba(${w.rgb}, 0.75)`);
+    g.addColorStop(1, `rgba(${w.rgb}, 0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(-8, 0, 12, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#3f6a17';
+    ctx.beginPath();
+    ctx.moveTo(-7, -2.2); ctx.lineTo(-9.5, -4.8); ctx.lineTo(-4, -2.2);
+    ctx.moveTo(-7, 2.2); ctx.lineTo(-9.5, 4.8); ctx.lineTo(-4, 2.2);
+    ctx.fill();
+    roundRectPath(ctx, -7, -2.2, 12, 4.4, 2);
+    ctx.fillStyle = '#eef7dc';
+    ctx.fill();
+    ctx.fillStyle = w.color;
+    ctx.beginPath(); ctx.moveTo(5, -2.2); ctx.quadraticCurveTo(10.5, 0, 5, 2.2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawLance() {
+    const L = G.lance;
+    if (!L) return;
+    const w = WEAPONS.lance, fl = 0.8 + 0.2 * Math.sin(oceanT * 70);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    const beam = (width, color) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath(); ctx.moveTo(L.x1, L.y1); ctx.lineTo(L.x2, L.y2); ctx.stroke();
+    };
+    beam(24 * fl, `rgba(${w.rgb}, 0.12)`);
+    beam(10 * fl, `rgba(${w.rgb}, 0.38)`);
+    beam(3.2, 'rgba(250, 236, 255, 0.95)');
+    // crackling arc wrapped around the beam
+    const dx = L.x2 - L.x1, dy = L.y2 - L.y1, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+    ctx.strokeStyle = `rgba(${w.rgb}, 0.85)`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(L.x1, L.y1);
+    for (let d = 18; d < len; d += 18) {
+      const o = rand(-6, 6);
+      ctx.lineTo(L.x1 + dx * d / len + nx * o, L.y1 + dy * d / len + ny * o);
+    }
+    ctx.stroke();
+    // muzzle + impact glows
+    const glows = [{ x: L.x1, y: L.y1, r: 16 }, ...L.hits.map(h => ({ x: h.x, y: h.y, r: 24 }))];
+    for (const pt of glows) {
+      const r = pt.r * fl;
+      const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+      g.addColorStop(0, 'rgba(255, 245, 255, 0.95)');
+      g.addColorStop(0.35, `rgba(${w.rgb}, 0.55)`);
+      g.addColorStop(1, `rgba(${w.rgb}, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawPickups() {
+    for (const k of G.pickups) {
+      const blink = k.life < 2 && Math.floor(k.life * 8) % 2 === 0;
+      const grow = Math.min(1, k.t * 3);
+      drawCrate(ctx, k.x, k.y, k.type, k.t + k.phase, (blink ? 0.35 : 1) * grow, 13 * (0.6 + 0.4 * grow));
+    }
+  }
+
+  function drawTorpedoes() {
+    for (const t of G.torpedoes) {
+      if (t.dead) continue;
+      drawTorpedoBody(ctx, t.x, t.y, t.angle, oceanT + t.born, t.track > 0);
+      if (t.track > 0) {
+        // remaining tracking time
+        const f = t.track / CONFIG.homing.trackTime;
+        ctx.strokeStyle = 'rgba(255, 70, 95, 0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(t.x, t.y, 15, -Math.PI / 2, -Math.PI / 2 + TAU * f); ctx.stroke();
+      }
+    }
+  }
+
+  function drawPlayerOverlays(p) {
+    // Special weapon timer ring
+    if (p.weapon) {
+      const w = WEAPONS[p.weapon], f = p.weaponTime / CONFIG.powerups.duration;
+      const dim = p.weaponTime < 1.5 && Math.floor(oceanT * 10) % 2 === 0;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(${w.rgb}, 0.16)`;
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 40, 0, TAU); ctx.stroke();
+      ctx.shadowColor = w.color;
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = `rgba(${w.rgb}, ${dim ? 0.3 : 0.95})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 40, -Math.PI / 2, -Math.PI / 2 + TAU * f); ctx.stroke();
+      ctx.restore();
+    }
+    // Torpedo lock-on warning
+    if (G.torpedoes.some(t => !t.dead && t.track > 0)) {
+      const pulse = 0.5 + 0.5 * Math.sin(oceanT * 12), r = 54 + pulse * 3, rot = oceanT * 1.5;
+      const col = `rgba(255, 59, 92, ${0.55 + 0.4 * pulse})`;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 4; i++) {
+        const a = rot + i * Math.PI / 2;
+        ctx.beginPath(); ctx.arc(0, 0, r, a - 0.32, a + 0.32); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (r - 7), Math.sin(a) * (r - 7));
+        ctx.lineTo(Math.cos(a) * (r + 4), Math.sin(a) * (r + 4));
+        ctx.stroke();
+      }
+      ctx.font = '800 11px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = col;
+      ctx.fillText('LOCKED ON', 0, -r - 13);
+      ctx.restore();
+    }
   }
 
   function drawShells() {
@@ -1250,6 +1829,7 @@
     if (G) {
       drawFoam();
       drawWrecks();
+      drawPickups();
 
       if (G.boss) {
         const b = G.boss, pulse = 0.5 + 0.5 * Math.sin(oceanT * 3);
@@ -1273,9 +1853,12 @@
         }
         drawShip(ctx, p, oceanT);
         ctx.globalAlpha = 1;
+        drawPlayerOverlays(p);
       }
 
+      drawTorpedoes();
       drawBullets();
+      drawLance();
       drawShells();
       drawParticles();
       for (const e of G.enemies) drawPips(e, 36);

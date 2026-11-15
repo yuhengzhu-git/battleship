@@ -42,6 +42,13 @@
           </div>
           <div id="boss-segments"></div>
         </div>
+        <div id="weapon-chip" class="panel weapon-chip hidden" aria-live="polite">
+          <div class="progress-row">
+            <span class="weapon-name"><span class="weapon-dot"></span><span id="weapon-name">Weapon</span></span>
+            <span id="weapon-time" class="progress-text">5.0s</span>
+          </div>
+          <div class="progress"><div id="weapon-fill" class="weapon-fill"></div></div>
+        </div>
       </div>
 
       <div class="hud-right panel">
@@ -81,6 +88,16 @@
             <canvas class="legend-icon" data-kind="boss" width="240" height="88"></canvas>
             <div><div class="legend-name">Dreadnought</div><div class="legend-desc">Boss — arrives after every 8 sinkings</div></div>
             <span class="hp-badge boss">10 HP</span>
+          </div>
+          <div class="legend-row">
+            <canvas class="legend-icon" data-kind="powerups" width="240" height="88"></canvas>
+            <div><div class="legend-name">Weapon Crates</div><div class="legend-desc">Sunk ships may drop Spread, Lance or Missiles — sail over to arm</div></div>
+            <span class="hp-badge power">5 s</span>
+          </div>
+          <div class="legend-row">
+            <canvas class="legend-icon" data-kind="torpedo" width="240" height="88"></canvas>
+            <div><div class="legend-name">Homing Torpedo</div><div class="legend-desc">Hunts you for 10 s — out-turn it or shoot it down</div></div>
+            <span class="hp-badge torpedo">10 s</span>
           </div>
         </div>
 
