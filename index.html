@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Ironclad Tide — Battleship Arcade Shooter</title>
-  <meta name="description" content="Command your battleship in Ironclad Tide: sink enemy frigates, survive with 3 hull points, and take down the 10-HP Dreadnought boss in this fast-paced naval arcade shooter." />
+  <meta name="description" content="Command your battleship in Ironclad Tide: sink enemy frigates, survive with 3 hull points, and take down the 50-HP Dreadnought boss in this fast-paced naval arcade shooter." />
   <meta name="theme-color" content="#031220" />
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Russo+One&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <main id="app">
@@ -38,7 +38,7 @@
         <div id="boss-wrap" class="panel hidden">
           <div class="progress-row">
             <span class="boss-title">DREADNOUGHT</span>
-            <span id="boss-hp-text" class="progress-text boss">10/10</span>
+            <span id="boss-hp-text" class="progress-text boss">50/50</span>
           </div>
           <div id="boss-segments"></div>
         </div>
@@ -87,7 +87,7 @@
           <div class="legend-row">
             <canvas class="legend-icon" data-kind="boss" width="240" height="88"></canvas>
             <div><div class="legend-name">Dreadnought</div><div class="legend-desc">Boss — arrives after every 8 sinkings</div></div>
-            <span class="hp-badge boss">10 HP</span>
+            <span class="hp-badge boss">50 HP</span>
           </div>
           <div class="legend-row">
             <canvas class="legend-icon" data-kind="powerups" width="240" height="88"></canvas>
@@ -146,6 +146,6 @@
     </section>
   </main>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>

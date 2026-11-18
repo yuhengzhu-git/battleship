@@ -22,11 +22,11 @@
   const CONFIG = {
     playerHp: 3,
     enemyHp: 3,
-    bossHp: 10,
+    bossHp: 50,
     killsPerBoss: 8,      // a boss appears after this many sinkings
     scrollSpeed: 38,      // ocean drift (px/s)
     maxParticles: 1500,
-    player: { speed: 270, accel: 5, fireCooldown: 0.2, bulletSpeed: 760, invuln: 1.6 },
+    player: { speed: 270, accel: 5, fireCooldown: 0.45, bulletSpeed: 760, invuln: 1.6 },
     powerups: {
       dropChance: 0.22,     // chance a sunk frigate drops a weapon crate
       bossDropChance: 1,    // the Dreadnought always drops one
@@ -45,9 +45,9 @@
 
   // Special weapons granted by crates
   const WEAPONS = {
-    spread:  { name: 'Tempest Spread', color: '#ffc94a', rgb: '255, 201, 74', hue: 44, cooldown: 0.18, pellets: 5, fan: 0.16, speed: 720, life: 0.75 },
+    spread:  { name: 'Tempest Spread', color: '#ffc94a', rgb: '255, 201, 74', hue: 44, cooldown: 0.3, pellets: 5, fan: 0.16, speed: 720, life: 0.75 },
     lance:   { name: 'Arc Lance', color: '#c77dff', rgb: '199, 125, 255', hue: 276, tick: 0.2 },
-    missile: { name: 'Hunter Missiles', color: '#9dff4a', rgb: '157, 255, 74', hue: 95, cooldown: 0.4, damage: 2, blast: 55 },
+    missile: { name: 'Hunter Missiles', color: '#9dff4a', rgb: '157, 255, 74', hue: 95, cooldown: 0.55, damage: 2, blast: 55 },
   };
   const WEAPON_KEYS = Object.keys(WEAPONS);
   const BEST_KEY = 'ironclad-tide-best';
@@ -482,7 +482,8 @@
       ui.hearts.appendChild(h);
     }
     ui.bossSegs.innerHTML = '';
-    for (let i = 0; i < CONFIG.bossHp; i++) {
+    const segCount = Math.min(CONFIG.bossHp, 10);
+    for (let i = 0; i < segCount; i++) {
       const s = document.createElement('div');
       s.className = 'seg on';
       ui.bossSegs.appendChild(s);
@@ -508,7 +509,12 @@
     ui.progressFill.style.width = (Math.min(1, G.killsSinceBoss / CONFIG.killsPerBoss) * 100) + '%';
     ui.progressText.textContent = `${Math.min(G.killsSinceBoss, CONFIG.killsPerBoss)}/${CONFIG.killsPerBoss}`;
     const bossHp = G.boss ? G.boss.hp : CONFIG.bossHp;
-    [...ui.bossSegs.children].forEach((s, i) => s.classList.toggle('on', i < bossHp));
+    const segs = ui.bossSegs.children.length || 1;
+    [...ui.bossSegs.children].forEach((s, i) => {
+      const fill = clamp((bossHp / CONFIG.bossHp) * segs - i, 0, 1);
+      s.classList.toggle('on', fill > 0);
+      s.style.opacity = fill > 0 ? String(0.35 + 0.65 * fill) : '';
+    });
     ui.bossHpText.textContent = `${bossHp}/${CONFIG.bossHp}`;
   }
 
@@ -604,6 +610,17 @@
       drawShip(g, ship, 0.3);
       g.restore();
     });
+    const badges = {
+      '.hp-badge.player': `${CONFIG.playerHp} HP`,
+      '.hp-badge.enemy': `${CONFIG.enemyHp} HP`,
+      '.hp-badge.boss': `${CONFIG.bossHp} HP`,
+      '.hp-badge.power': `${CONFIG.powerups.duration} s`,
+      '.hp-badge.torpedo': `${CONFIG.homing.trackTime} s`,
+    };
+    for (const [sel, txt] of Object.entries(badges)) {
+      const el = document.querySelector(sel);
+      if (el) el.textContent = txt;
+    }
   }
 
   /* =========================================================
@@ -1771,17 +1788,24 @@
 
   function drawPips(s, yOff) {
     if (s.y < 0) return;
-    const n = s.maxHp, boss = s.kind === 'boss';
+    const n = s.maxHp, boss = s.kind === 'boss', pips = Math.min(n, 10);
     const w = boss ? 14 : 9, h = boss ? 5 : 4, gap = 3;
-    const total = n * w + (n - 1) * gap;
+    const total = pips * w + (pips - 1) * gap;
     const x0 = s.x - total / 2, y = s.y - yOff;
     roundRectPath(ctx, x0 - 3, y - 3, total + 6, h + 6, 4);
     ctx.fillStyle = 'rgba(0, 10, 20, 0.45)';
     ctx.fill();
-    for (let i = 0; i < n; i++) {
-      roundRectPath(ctx, x0 + i * (w + gap), y, w, h, 2);
-      ctx.fillStyle = i < s.hp ? (boss ? '#ff3b5c' : '#ffb347') : 'rgba(255, 255, 255, 0.12)';
+    for (let i = 0; i < pips; i++) {
+      const px = x0 + i * (w + gap);
+      roundRectPath(ctx, px, y, w, h, 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.fill();
+      const fill = clamp((s.hp / n) * pips - i, 0, 1);
+      if (fill > 0) {
+        roundRectPath(ctx, px, y, w * fill, h, Math.min(2, w * fill * 0.5));
+        ctx.fillStyle = boss ? '#ff3b5c' : '#ffb347';
+        ctx.fill();
+      }
     }
   }
 
